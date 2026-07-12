@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { toast } from "react-toastify";
@@ -11,14 +11,19 @@ export default function ProductDetails() {
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [qty, setQty] = useState(1);
+  const [activeImage, setActiveImage] = useState(null);
 
   useEffect(() => {
-    fetchProductById(id).then((res) => setProduct(res.data));
+    fetchProductById(id).then((res) => {
+      setProduct(res.data);
+      setActiveImage(res.data.image);
+    });
   }, [id]);
 
   if (!product) return <p className="max-w-7xl mx-auto px-4 py-8">Loading...</p>;
 
   const finalPrice = product.price - (product.price * product.discount) / 100;
+  const allImages = [product.image, ...(product.gallery || [])].filter(Boolean);
 
   const handleAddToCart = () => {
     dispatch(addToCartThunk({ productId: product._id, quantity: qty }))
@@ -29,11 +34,29 @@ export default function ProductDetails() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 grid md:grid-cols-2 gap-8">
-      <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden">
-        {product.image ? (
-          <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-400">No Image</div>
+      <div>
+        <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden">
+          {activeImage ? (
+            <img src={activeImage} alt={product.title} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-400">No Image</div>
+          )}
+        </div>
+
+        {allImages.length > 1 && (
+          <div className="flex gap-2 mt-3 overflow-x-auto">
+            {allImages.map((img, i) => (
+              <button
+                key={i}
+                onClick={() => setActiveImage(img)}
+                className={`w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border-2 ${
+                  activeImage === img ? "border-primary-600" : "border-transparent"
+                }`}
+              >
+                <img src={img} alt={`${product.title} ${i + 1}`} className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
         )}
       </div>
 

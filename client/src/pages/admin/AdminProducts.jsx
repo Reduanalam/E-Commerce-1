@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { fetchProducts, fetchCategories } from "../../services/productService.js";
-import { adminCreateProduct, adminDeleteProduct, uploadProductImage } from "../../services/adminService.js";
+import { adminCreateProduct, adminDeleteProduct, uploadProductImage, uploadProductGalleryImages } from "../../services/adminService.js";
 import { toast } from "react-toastify";
 
 export default function AdminProducts() {
@@ -12,9 +12,11 @@ export default function AdminProducts() {
     stock: "",
     description: "",
     image: "",
+    gallery: [],
     category: "",
   });
   const [uploading, setUploading] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
 
   const load = () => fetchProducts({ limit: 50 }).then((res) => setProducts(res.data));
 
@@ -36,7 +38,7 @@ export default function AdminProducts() {
     try {
       const res = await uploadProductImage(file);
       setForm((f) => ({ ...f, image: res.data.url }));
-      toast.success("Image uploaded");
+      toast.success("Main image uploaded");
     } catch (err) {
       toast.error(err.response?.data?.message || "Image upload failed");
     } finally {
@@ -44,10 +46,41 @@ export default function AdminProducts() {
     }
   };
 
+  const handleGalleryChange = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    if (files.some((f) => f.size > 5 * 1024 * 1024)) {
+      toast.error("Each image must be under 5MB");
+      return;
+    }
+
+    if (form.gallery.length + files.length > 6) {
+      toast.error("Maximum 6 gallery images allowed");
+      return;
+    }
+
+    setUploadingGallery(true);
+    try {
+      const res = await uploadProductGalleryImages(files);
+      const urls = res.data.map((item) => item.url);
+      setForm((f) => ({ ...f, gallery: [...f.gallery, ...urls] }));
+      toast.success(`${urls.length} image(s) uploaded to gallery`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Gallery upload failed");
+    } finally {
+      setUploadingGallery(false);
+    }
+  };
+
+  const removeGalleryImage = (index) => {
+    setForm((f) => ({ ...f, gallery: f.gallery.filter((_, i) => i !== index) }));
+  };
+
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!form.image) {
-      toast.error("Please add a product image (upload or URL)");
+      toast.error("Please add a main product image (upload or URL)");
       return;
     }
     try {
@@ -58,7 +91,7 @@ export default function AdminProducts() {
         category: form.category || undefined,
       });
       toast.success("Product created");
-      setForm({ title: "", price: "", stock: "", description: "", image: "", category: "" });
+      setForm({ title: "", price: "", stock: "", description: "", image: "", gallery: [], category: "" });
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to create product");
@@ -77,7 +110,7 @@ export default function AdminProducts() {
 
       <form onSubmit={handleCreate} className="bg-white p-4 rounded-xl shadow-sm mb-6 grid grid-cols-2 gap-3">
         <input required placeholder="Title" className="border rounded-lg px-3 py-2"
-          value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}/>
         <select
           className="border rounded-lg px-3 py-2"
           value={form.category}
@@ -89,12 +122,12 @@ export default function AdminProducts() {
           ))}
         </select>
         <input required type="number" placeholder="Price" className="border rounded-lg px-3 py-2"
-          value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+          value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })}/>
         <input required type="number" placeholder="Stock" className="border rounded-lg px-3 py-2"
-          value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
+          value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}/>
 
         <div className="col-span-2">
-          <label className="block text-sm font-medium mb-2">Product Image</label>
+          <label className="block text-sm font-medium mb-2">Main Product Image</label>
           <div className="grid grid-cols-2 gap-3 items-start">
             <div>
               <p className="text-xs text-gray-500 mb-1">Option A — Upload from device</p>
@@ -132,10 +165,40 @@ export default function AdminProducts() {
           )}
         </div>
 
+        <div className="col-span-2">
+          <label className="block text-sm font-medium mb-2">Gallery Images (up to 6, optional)</label>
+          <input
+            type="file"
+            accept="image/png, image/jpeg, image/webp, image/gif"
+            multiple
+            onChange={handleGalleryChange}
+            disabled={uploadingGallery || form.gallery.length >= 6}
+            className="border rounded-lg px-3 py-2 w-full text-sm"
+          />
+          {uploadingGallery && <p className="text-xs text-gray-400 mt-1">Uploading gallery images...</p>}
+
+          {form.gallery.length > 0 && (
+            <div className="flex flex-wrap gap-3 mt-3">
+              {form.gallery.map((url, i) => (
+                <div key={i} className="relative">
+                  <img src={url} alt={`Gallery ${i + 1}`} className="w-16 h-16 object-cover rounded-lg border" />
+                  <button
+                    type="button"
+                    onClick={() => removeGalleryImage(i)}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <textarea required placeholder="Description" className="border rounded-lg px-3 py-2 col-span-2"
           value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         <button
-          disabled={uploading}
+          disabled={uploading || uploadingGallery}
           className="bg-primary-600 text-white py-2 rounded-lg font-semibold col-span-2 disabled:opacity-50"
         >
           Add Product
@@ -155,6 +218,7 @@ export default function AdminProducts() {
               <p className="text-sm text-gray-500">
                 ৳{p.price} · Stock: {p.stock}
                 {p.category?.name ? ` · ${p.category.name}` : ""}
+                {p.gallery?.length > 0 ? ` · ${p.gallery.length} gallery photos` : ""}
               </p>
             </div>
             <button onClick={() => handleDelete(p._id)} className="text-red-500 text-sm">
