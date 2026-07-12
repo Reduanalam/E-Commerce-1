@@ -1,9 +1,13 @@
-import Cart from "../models/Cart.js";
+﻿import Cart from "../models/Cart.js";
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 import Coupon from "../models/Coupon.js";
 
-const SHIPPING_FEE = 60;
+const getShippingFee = (district) => {
+  if (!district) return 120; // district na dile bairer dhore neya
+  const normalized = district.trim().toLowerCase();
+  return normalized === "dhaka" ? 60 : 120;
+};
 
 const buildManualPayment = (paymentMethod, body) => {
   if (paymentMethod !== "bkash" && paymentMethod !== "nagad") return undefined;
@@ -34,8 +38,6 @@ export const placeOrder = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Cart is empty" });
     }
 
-    // If the customer only checked out some items on the cart page, only order those;
-    // the rest remain in the cart untouched.
     const itemsToOrder =
       Array.isArray(selectedItems) && selectedItems.length > 0
         ? cart.items.filter((item) => selectedItems.includes(item.product._id.toString()))
@@ -73,7 +75,7 @@ export const placeOrder = async (req, res, next) => {
       }
     }
 
-    const shippingFee = SHIPPING_FEE;
+    const shippingFee = getShippingFee(shippingAddress?.district);
     const total = subtotal - discount + shippingFee;
 
     const order = await Order.create({
@@ -135,7 +137,7 @@ export const placeDirectOrder = async (req, res, next) => {
       }
     }
 
-    const shippingFee = SHIPPING_FEE;
+    const shippingFee = getShippingFee(shippingAddress?.district);
     const total = subtotal - discount + shippingFee;
 
     const order = await Order.create({
